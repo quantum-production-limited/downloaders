@@ -12,8 +12,7 @@ This repository contains official downloaders for Quantum Production Limited sof
 
 ### Requirements
 
-- A GitHub Personal Access Token (PAT) with `Contents: Read-only` permission
-- Bash shell environment
+- A GitHub Personal Access Token (PAT) with `Contents: Read-only` permission for the target repository
 - Required utilities: `curl`, `jq`, `tar`
 
 ### Usage
