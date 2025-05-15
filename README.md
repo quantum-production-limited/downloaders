@@ -174,12 +174,6 @@ If you encounter issues with the downloader:
   - Using chocolatey: `choco install curl` and `choco install jq`
 - If you encounter ANSI color issues, try running the command with `-NoNewWindow` PowerShell parameter
 
-## Coming Soon
-
-- Downloaders for other Quantum Production Limited products (Polaris, Horizon, etc.)
-- Additional installation options and configurations
-- Automated dependency checking and installation
-
 ## License
 
 Copyright © 2025 Quantum Production Limited. All rights reserved.
