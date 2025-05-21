@@ -2,14 +2,15 @@
 set -e
 
 # Colors for terminal output
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-BLUE='\033[0;36m'
+RED='\033[1;31m'
+GREEN='\033[1;32m'
+YELLOW='\033[1;33m'
+BLUE='\033[1;36m'
 NC='\033[0m' # No Color
 
-echo -e "${GREEN}QPulse Downloader${NC}"
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${GREEN}          QPulse Download Script          ${NC}"
+echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 
 # Repository information
 REPO="quantum-production-limited/QuantumPulse"
@@ -243,9 +244,13 @@ if command -v file &> /dev/null; then
     fi
 fi
 
-echo "Extracting files..."
+# Remove existing 'images' directory if it exists so that old images do not load during installation.
+if [ -d "$OUTPUT_DIR/images" ]; then
+    rm -rf "$OUTPUT_DIR/images"
+fi
 
 # Extract the tarball
+echo "Extracting files..."
 tar -xzf "$OUTPUT_DIR/$ASSET_NAME" -C "$OUTPUT_DIR"
 
 # Check extraction status
@@ -298,5 +303,6 @@ fi
 # Clean up temp file
 rm -f $TEMP_RESPONSE
 
-echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo
 
