@@ -8,6 +8,28 @@ YELLOW='\033[1;33m'
 BLUE='\033[1;36m'
 NC='\033[0m' # No Color
 
+# Detect operating system
+OS="$(uname -s)"
+case "${OS}" in
+    Linux*)     SYSTEM="Linux";;
+    Darwin*)    SYSTEM="macOS";;
+    *)          SYSTEM="Unknown";;
+esac
+
+# Check for root/admin privileges
+if [[ "$EUID" -ne 0 ]]; then
+    echo -e "${RED}Error: This script must be run with sudo privileges${NC}"
+    if [[ "$SYSTEM" == "Linux" ]]; then
+        echo "Please run: sudo $0 $*"
+    elif [[ "$SYSTEM" == "macOS" ]]; then
+        echo "Please run: sudo $0 $*"
+    fi
+    exit 1
+elif [[ "$SYSTEM" == "Unknown" ]]; then
+    echo -e "${RED}Error: Unsupported operating system${NC}"
+    exit 1
+fi
+
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${GREEN}          QPulse Download Script          ${NC}"
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
@@ -305,4 +327,3 @@ rm -f $TEMP_RESPONSE
 
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo
-
