@@ -8,26 +8,22 @@ YELLOW='\033[1;33m'
 BLUE='\033[1;36m'
 NC='\033[0m' # No Color
 
-# Detect operating system
-OS="$(uname -s)"
-case "${OS}" in
-    Linux*)     SYSTEM="Linux";;
-    Darwin*)    SYSTEM="macOS";;
-    *)          SYSTEM="Unknown";;
-esac
-
-# Check for root/admin privileges
-if [[ "$EUID" -ne 0 ]]; then
-    echo -e "${RED}Error: This script must be run with sudo privileges${NC}"
-    if [[ "$SYSTEM" == "Linux" ]]; then
-        echo "Please run: sudo $0 $*"
-    elif [[ "$SYSTEM" == "macOS" ]]; then
-        echo "Please run: sudo $0 $*"
+# Check if current user has sudo privileges
+CURRENT_USER="${SUDO_USER:-$(whoami)}"
+if [[ "$OSTYPE" == "darwin"* ]]; then
+    # macOS: check if user is in admin group
+    if ! dscl . -read /Groups/admin GroupMembership 2>/dev/null | grep -q "\b$CURRENT_USER\b"; then
+        echo -e "${RED}Error: User $CURRENT_USER does not have administrative privileges${NC}"
+        echo "This script requires an administrative user account"
+        exit 1
     fi
-    exit 1
-elif [[ "$SYSTEM" == "Unknown" ]]; then
-    echo -e "${RED}Error: Unsupported operating system${NC}"
-    exit 1
+else
+    # Linux: check if user is in sudo or wheel group
+    if ! groups "$CURRENT_USER" 2>/dev/null | grep -qE '\b(sudo|wheel)\b'; then
+        echo -e "${RED}Error: User $CURRENT_USER does not have administrative privileges${NC}"
+        echo "This script requires a user with sudo access"
+        exit 1
+    fi
 fi
 
 echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
