@@ -41,6 +41,27 @@ elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
     OS_TYPE="linux"
 fi
 
+# Determine which HTTP client to use
+USE_CURL=true
+if ! command -v curl &> /dev/null; then
+    if command -v wget &> /dev/null; then
+        USE_CURL=false
+        echo -e "${YELLOW}curl not found, using wget as fallback${NC}"
+    else
+        echo -e "${RED}Error: Neither curl nor wget is available${NC}"
+        echo "Please install one of them using your system's package manager."
+        
+        if [ "$OS_TYPE" == "macos" ]; then
+            echo "For macOS: brew install curl (or wget)"
+        else
+            echo "For Debian/Ubuntu: sudo apt-get install curl (or wget)"
+            echo "For Fedora/RHEL: sudo dnf install curl (or wget)"
+            echo "For Arch: sudo pacman -S curl (or wget)"
+        fi
+        exit 1
+    fi
+fi
+
 # Check for required commands
 check_command() {
     if ! command -v "$1" &> /dev/null; then
@@ -58,9 +79,55 @@ check_command() {
     fi
 }
 
-check_command curl curl
 check_command jq jq
 check_command tar tar
+
+# HTTP request functions
+make_get_request() {
+    local url="$1"
+    local output_file="$2"
+    local auth_header="Authorization: token $TOKEN"
+    local accept_header="Accept: application/vnd.github.v3+json"
+    
+    if [ "$USE_CURL" = true ]; then
+        curl -s -H "$auth_header" -H "$accept_header" "$url" > "$output_file"
+    else
+        wget --quiet --header="$auth_header" --header="$accept_header" -O "$output_file" "$url"
+    fi
+}
+
+check_repo_access() {
+    local url="$1"
+    local auth_header="Authorization: token $TOKEN"
+    
+    if [ "$USE_CURL" = true ]; then
+        local status_code=$(curl -s -o /dev/null -w "%{http_code}" -H "$auth_header" "$url")
+        [ "$status_code" = "200" ]
+    else
+        wget --quiet --spider --header="$auth_header" "$url" 2>/dev/null
+    fi
+}
+
+download_asset() {
+    local url="$1"
+    local output_file="$2"
+    local auth_header="Authorization: token $TOKEN"
+    local accept_header="Accept: application/octet-stream"
+    
+    if [ "$USE_CURL" = true ]; then
+        curl -L -o "$output_file" \
+             -H "$accept_header" \
+             -H "$auth_header" \
+             --progress-bar \
+             "$url"
+    else
+        wget --header="$accept_header" \
+             --header="$auth_header" \
+             --progress=bar:force \
+             -O "$output_file" \
+             "$url"
+    fi
+}
 
 # Determine appropriate user home directory
 if [ $(id -u) -eq 0 ]; then
@@ -146,10 +213,7 @@ mkdir -p "$OUTPUT_DIR"
 
 # Validate token has sufficient permissions to access the repository
 echo "Validating token permissions..."
-REPO_CHECK=$(curl -s -o /dev/null -w "%{http_code}" -H "Authorization: token $TOKEN" \
-    "https://api.github.com/repos/$REPO")
-
-if [ "$REPO_CHECK" != "200" ]; then
+if ! check_repo_access "https://api.github.com/repos/$REPO"; then
     echo -e "${RED}Error: Unable to access repository $REPO${NC}"
     echo "Please verify:"
     echo "1. Your token has appropriate repository access permissions"
@@ -160,9 +224,7 @@ fi
 
 # Step 1: Get the release information
 echo -e "Looking up version ${BLUE}$VERSION${NC}..."
-curl -s -H "Authorization: token $TOKEN" \
-     -H "Accept: application/vnd.github.v3+json" \
-     "https://api.github.com/repos/$REPO/releases/tags/v$VERSION" > $TEMP_RESPONSE
+make_get_request "https://api.github.com/repos/$REPO/releases/tags/v$VERSION" "$TEMP_RESPONSE"
 
 # Check if release exists
 if grep -q "Not Found" $TEMP_RESPONSE; then
@@ -170,14 +232,17 @@ if grep -q "Not Found" $TEMP_RESPONSE; then
     
     # List available releases
     echo "Available releases:"
-    RELEASES=$(curl -s -H "Authorization: token $TOKEN" \
-        "https://api.github.com/repos/$REPO/releases" | grep -o '"tag_name": "v[^"]*"' | sed 's/"tag_name": "v\(.*\)"/\1/')
+    RELEASES_TEMP="/tmp/github_releases.json"
+    make_get_request "https://api.github.com/repos/$REPO/releases" "$RELEASES_TEMP"
+    
+    RELEASES=$(grep -o '"tag_name": "v[^"]*"' "$RELEASES_TEMP" | sed 's/"tag_name": "v\(.*\)"/\1/')
     
     if [ -n "$RELEASES" ]; then
         echo "$RELEASES"
     else
         echo "No releases found or insufficient permissions to list releases"
     fi
+    rm -f "$RELEASES_TEMP"
     exit 1
 fi
 
@@ -199,11 +264,7 @@ SIZE_MB=$(awk "BEGIN {printf \"%.2f\", $ASSET_SIZE/1048576}")
 
 # Step 3: Download the asset with progress tracking
 echo -e "Downloading ${BLUE}$ASSET_NAME${NC} (${BLUE}${SIZE_MB} MB${NC}) from ${BLUE}${REPO}${NC}..."
-curl -L -o "$OUTPUT_DIR/$ASSET_NAME" \
-     -H "Accept: application/octet-stream" \
-     -H "Authorization: token $TOKEN" \
-     --progress-bar \
-     "$ASSET_URL"
+download_asset "$ASSET_URL" "$OUTPUT_DIR/$ASSET_NAME"
 
 # Check if download was successful
 if [ ! -f "$OUTPUT_DIR/$ASSET_NAME" ] || [ ! -s "$OUTPUT_DIR/$ASSET_NAME" ]; then
