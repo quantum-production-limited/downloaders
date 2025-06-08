@@ -194,13 +194,8 @@ if [ -z "$ASSET_URL" ]; then
     exit 1
 fi
 
-# Calculate size in MB for display - use portable calculation method
-if command -v bc &> /dev/null; then
-    SIZE_MB=$(echo "scale=2; $ASSET_SIZE / 1048576" | bc)
-else
-    # Fallback if bc is not available
-    SIZE_MB=$(awk "BEGIN {printf \"%.2f\", $ASSET_SIZE/1048576}")
-fi
+# Calculate size in MB for display
+SIZE_MB=$(awk "BEGIN {printf \"%.2f\", $ASSET_SIZE/1048576}")
 
 # Step 3: Download the asset with progress tracking
 echo -e "Downloading ${BLUE}$ASSET_NAME${NC} (${BLUE}${SIZE_MB} MB${NC}) from ${BLUE}${REPO}${NC}..."
@@ -234,13 +229,8 @@ else
     fi
 fi
 
-# Calculate size in MB with fallback method
-if command -v bc &> /dev/null; then
-    DOWNLOADED_SIZE_MB=$(echo "scale=2; $DOWNLOADED_SIZE / 1048576" | bc)
-else
-    DOWNLOADED_SIZE_MB=$(awk "BEGIN {printf \"%.2f\", $DOWNLOADED_SIZE/1048576}")
-fi
-
+# Calculate size in MB
+DOWNLOADED_SIZE_MB=$(awk "BEGIN {printf \"%.2f\", $DOWNLOADED_SIZE/1048576}")
 echo -e "Download complete. File size: ${BLUE}${DOWNLOADED_SIZE_MB} MB${NC}"
 
 # Check file type - with fallback if file command is missing
