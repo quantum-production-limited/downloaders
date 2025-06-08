@@ -79,8 +79,72 @@ check_command() {
     fi
 }
 
-check_command jq jq
+check_command python3 python3
 check_command tar tar
+
+# JSON parsing functions using python3
+parse_json_field() {
+    local json_file="$1"
+    local field="$2"
+    
+    python3 -c "
+import json, sys
+try:
+    with open('$json_file', 'r') as f:
+        data = json.load(f)
+    print(data.get('$field', ''))
+except:
+    sys.exit(1)
+"
+}
+
+find_asset_info() {
+    local json_file="$1"
+    local asset_name="$2"
+    
+    python3 -c "
+import json, sys
+try:
+    with open('$json_file', 'r') as f:
+        data = json.load(f)
+    
+    assets = data.get('assets', [])
+    for asset in assets:
+        if asset.get('name') == '$asset_name':
+            print(f\"{asset.get('url', '')},{asset.get('size', '')}\")
+            sys.exit(0)
+    
+    # Asset not found, print available assets
+    print('ASSET_NOT_FOUND')
+    for asset in assets:
+        print(asset.get('name', ''), file=sys.stderr)
+        
+except Exception as e:
+    print('JSON_PARSE_ERROR', file=sys.stderr)
+    sys.exit(1)
+"
+}
+
+list_available_releases() {
+    local json_file="$1"
+    
+    python3 -c "
+import json, sys
+try:
+    with open('$json_file', 'r') as f:
+        data = json.load(f)
+    
+    if isinstance(data, list):
+        for release in data:
+            tag_name = release.get('tag_name', '')
+            if tag_name.startswith('v'):
+                print(tag_name[1:])  # Remove 'v' prefix
+            else:
+                print(tag_name)
+except:
+    sys.exit(1)
+"
+}
 
 # HTTP request functions
 make_get_request() {
@@ -235,7 +299,7 @@ if grep -q "Not Found" $TEMP_RESPONSE; then
     RELEASES_TEMP="/tmp/github_releases.json"
     make_get_request "https://api.github.com/repos/$REPO/releases" "$RELEASES_TEMP"
     
-    RELEASES=$(grep -o '"tag_name": "v[^"]*"' "$RELEASES_TEMP" | sed 's/"tag_name": "v\(.*\)"/\1/')
+    RELEASES=$(list_available_releases "$RELEASES_TEMP")
     
     if [ -n "$RELEASES" ]; then
         echo "$RELEASES"
@@ -248,14 +312,24 @@ fi
 
 # Step 2: Find the asset download URL and size
 echo "Locating the asset you're looking for..."
-ASSET_INFO=$(jq -r ".assets[] | select(.name == \"$ASSET_NAME\") | {url: .url, size: .size}" $TEMP_RESPONSE)
-ASSET_URL=$(echo "$ASSET_INFO" | jq -r ".url")
-ASSET_SIZE=$(echo "$ASSET_INFO" | jq -r ".size")
+ASSET_RESULT=$(find_asset_info "$TEMP_RESPONSE" "$ASSET_NAME")
 
-if [ -z "$ASSET_URL" ]; then
+if [ "$ASSET_RESULT" = "ASSET_NOT_FOUND" ]; then
     echo -e "${YELLOW}Warning: Asset $ASSET_NAME not found in release v$VERSION${NC}"
     echo "Available assets:"
-    jq -r '.assets[].name' $TEMP_RESPONSE
+    find_asset_info "$TEMP_RESPONSE" "$ASSET_NAME" 2>&1 >/dev/null
+    exit 1
+elif [ "$ASSET_RESULT" = "JSON_PARSE_ERROR" ]; then
+    echo -e "${RED}Error: Failed to parse release information${NC}"
+    exit 1
+fi
+
+# Parse the result (format: "url,size")
+ASSET_URL=$(echo "$ASSET_RESULT" | cut -d',' -f1)
+ASSET_SIZE=$(echo "$ASSET_RESULT" | cut -d',' -f2)
+
+if [ -z "$ASSET_URL" ] || [ -z "$ASSET_SIZE" ]; then
+    echo -e "${RED}Error: Failed to extract asset information${NC}"
     exit 1
 fi
 
